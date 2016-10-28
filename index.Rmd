@@ -107,9 +107,9 @@ __Figure 1: The project area / orthoimagery acquisition boundary in relation to 
 
 ## Imagery
 
-High quality aerial imagery was acquired for the project area between June 6 and June 23, 2014 by the USDA Farm Service Agency Aerial Photography Field Office (APFO). The acquisition platform was a light aircraft flying ~5,570 m above ground level to achieve a nominal resolution of 0.3 m. The 4-band -- red, green, blue, and near infrared (hereafter, 'NIR') -- imagery was collected using a Microsoft UltraCam Eagle sensor with a 100.5 mm focal length. The images were orthorectified, mosaicked, and radiometrically adjusted to meet contract requirements. The primary difference between this imagery and the better-known NAIP image archive is quality: i.e., how far off nadir acquisitions are allowed to be, the increased overlap between photos, a requirement for no cloud cover, and restrictions on time of day (to reduce shadows).  
+High quality aerial imagery was acquired for the project area between June 6 and June 23, 2014 by the USDA Farm Service Agency Aerial Photography Field Office (APFO). The acquisition platform was a light aircraft flying ~5,570 m above ground level to achieve a nominal resolution of 0.3 m. The 4-band -- red, green, blue, and near infrared (hereafter, 'NIR') -- imagery was collected using a Microsoft UltraCam Eagle sensor with a 100.5 mm focal length. The images were orthorectified, mosaicked, and radiometrically adjusted to meet contract requirements. The primary difference between this imagery and the better-known NAIP image archive is quality: i.e., how far off nadir acquisitions are allowed to be, the increased overlap between photos, a requirement for no cloud cover, and restrictions on time of day (to reduce shadows).
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-The APFO imagery was stored as an asset (i.e., a stack of images, referred to as an `ImageCollection`) in [Google Earth Engine](https://earthengine.google.com/) (hereafter, 'Earth Engine'). Each `ee.Image` object within the collection represents a single Digital Orthophoto Quarter Quarter Quadrangle (DOQQQ).  
+The APFO imagery was stored as an asset (i.e., a stack of images, referred to as an `ImageCollection`) in [Google Earth Engine](https://earthengine.google.com/) (hereafter, 'Earth Engine'). Each `ee.Image` object within the collection represents a single Digital Orthophoto Quarter Quarter Quadrangle (DOQQQ).
 
 ## Model building
 We developed a 3-class (tree, non-tree, and shadow) supervized classification model. Specifically, we used a random forest classifier [@breiman_random_2001]. The model-building process entailed several steps, each of which are described in detail below:
@@ -119,15 +119,14 @@ We developed a 3-class (tree, non-tree, and shadow) supervized classification mo
   3. Data aggregation;
   4. Tuning for optimal model hyperparameters; and
   5. Classification.
-  
+
 ### Training data development
-Spatially balanced random survey cells generated using the Reversed Randomized Quadrant-Recursive Raster algorithm [RRQRR; @theobald_using_2007] were used to develop training data for the canopy cover classification model (_n_ = 158, ~300-acre cells).^[Level 14 of the nested hierarchical global grid.] All told, 6,119 samples were used to train the model, 40% of which were collected completely at random and 50% of which were collected opportunistically (Figure 1). The remaining 10% of samples were collected completely opportunistically outside of the spatially balanced survey cells. 
+Spatially balanced random survey cells generated using the Reversed Randomized Quadrant-Recursive Raster algorithm [RRQRR; @theobald_using_2007] were used to develop training data for the canopy cover classification model (_n_ = 158, ~300-acre cells).^[Level 14 of the nested hierarchical global grid.] All told, 6,119 samples were used to train the model, 40% of which were collected completely at random and 50% of which were collected opportunistically (Figure 1). The remaining 10% of samples were collected completely opportunistically outside of the spatially balanced survey cells.
 
 ### Predictor variable development
-A large suite of predictors were developed using the imagery as well as digital elevation data. For example, we computed the [Normalized Difference Vegetation Index](https://en.wikipedia.org/wiki/Normalized_Difference_Vegetation_Index) (NDVI) from the red and NIR bands in the imagery, and topographic layers (i.e., elevation, slope, aspect) using the USGS National Elevation Dataset [NED; @farr_shuttle_2007] digital elevation data. Additionally, we applied:  
+A large suite of predictors were developed using the imagery as well as digital elevation data. For example, we computed the [Normalized Difference Vegetation Index](https://en.wikipedia.org/wiki/Normalized_Difference_Vegetation_Index) (NDVI) from the red and NIR bands in the imagery, and topographic layers (i.e., elevation, slope, aspect) using the USGS National Elevation Dataset [NED; @farr_shuttle_2007] digital elevation data. Additionally, we applied:
 
   - edge detection, including a difference-of-Gaussians (DOG) involving 'fat' and 'skinny' Gaussian kernels;^[$\sigma$ = 7 and 1, respectively, for a Gaussian kernel of radius 7 pixels.]
-  - morphological operations (i.e., [opening](https://en.wikipedia.org/wiki/Opening_(morphology)));
   - methods for estimating spatial texture, including [entropy](https://en.wikipedia.org/wiki/Entropy_(information_theory)), a gray-level co-occurrence matrix (GLCM; for more information see @haralick_textural_1973 and @conners_segmentation_1984), and a local measure of spaital association [Geary's C; @anselin_local_1995].^[All estimates of spatial texture were computed using the near infrared band.]
 
 ```{r composition0, fig.show='hold', out.width='50%'}
@@ -135,22 +134,28 @@ knitr::include_graphics(file.path(figs_dir, 'p_rgb.png'))
 knitr::include_graphics(file.path(figs_dir, 'p_grid.png'))
 ```
 __Figure 2: Examples of quantities derived using the imagery seen in true-color in the left-most panel. Predictors shown here (the singleband pseudocolor images in the right-most panel) include NDVI, DOG, entropy, and GLCM cluster shade.__
-<br><br>
 
 ### Data aggregation
-To extract predictor variable information to the locations of all samples in the training data, we used reducers (i.e., the `ee.Reducer` class) in Earth Engine. Samples that fell in the overlapping area between DOQQQ tiles had two (or more) sets of covariate information. We did not allow these redundant copies enter the model-training step (described below). Instead, we selected only one set of covariate information for these samples, specifically the set corresponding to the DOQQQ tile whose centroid was nearest the 'offending' sample. 
+To extract predictor variable information to the locations of all samples in the training data, we used reducers (i.e., the `ee.Reducer` class) in Earth Engine. Samples that fell in the overlapping area between DOQQQ tiles had two (or more) sets of covariate information. We did not allow these redundant copies enter the model-training step (described below). Instead, we selected only one set of covariate information for these samples, specifically the set corresponding to the DOQQQ tile whose centroid was nearest the 'offending' sample.
 
-### Tuning for optimal model hyperparameters 
-The training samples and associated covariate information were brought into R, where we used the [caret](https://github.com/topepo/caret) package to find optimal parameters for the random forest algorithm. Specifically, we conducted a grid search of parameters, using repeated cross validation and accuracy as the performance metric, to select the optimal model.  
+### Tuning for optimal model hyperparameters
+The training samples and associated covariate information were brought into R, where we used the [caret](https://github.com/topepo/caret) package to find optimal parameters for the random forest algorithm. Specifically, we conducted a grid search of parameters, using repeated cross validation and accuracy as the performance metric, to select the optimal model.
 
 ### Classification
-The final, tuned model hyperparameters (the number of trees, variables per split, and minimum leaf population), were then used in the `ee.Classifier.randomForest` method in Earth Engine. We trained the model against a regionally-boosted sample for each image in the final prediction in order to better-calibrate the model against local conditions. The final canopy cover classification model can be viewed using the web application linked to below. 
+The final, tuned model hyperparameters (the number of trees, variables per split, and minimum leaf population), were then used in the `ee.Classifier.randomForest` method in Earth Engine. We trained the model against a regionally-boosted sample for each image in the final prediction in order to better-calibrate the model against local conditions. The final canopy cover classification model can be viewed using the web application linked to below.
 
-[TODO: insert screenshot of the web app!]
+<br>
+<a href="https://lpa-4fri.appspot.com/">
+<center><img src="http://gdurl.com/0oNZ" alt="Go to the app!" width="600" height="195"></center>
+</a>
+<br>
 
 ## Model evaluation
-The performance of the classification model was evaluated against a 'test' partition, a set (_n_ = 621) of samples selected at random from among the spatially-balanced training set and withheld from the model during tuning/training. Statistical measures of the performance of the model are provided in a confusion matrix (Table 1). Numbers along the diagonal (boldface font) represent correctly classified test samples. Overall accuracy (the sum of correctly classified samples divided by the total number of samples) was 96.5%. 
+The performance of the classification model was evaluated against a 'test' partition, a set (_n_ = 621) of samples selected at random from among the spatially-balanced training set and withheld from the model during tuning/training. Statistical measures of the performance of the model are provided in a confusion matrix (Table 1). Numbers along the diagonal (boldface font) represent correctly classified test samples. Overall accuracy (the sum of correctly classified samples divided by the total number of samples) was 96.5%.
 
+
+<center>
+<div id="t_container">
 __Table 1: Confusion matrix for the classification model.__
 ```{r eval}
 source(file.path(project_repo, 'code', 'evaluation.R'), chdir=TRUE)
@@ -169,33 +174,42 @@ htmlTable(output,
           n.cgroup = length(classes)
           )
 ```
+</div>
+</center>
+<style>
+#t_container {
+    width:35%;
+    text-align:justify;
+}
+</style>
+
 
 Off-diagonal elements represent different types of errors. For example, there were 11 samples that were misclassified as 'other' (non-tree/non-shadow) when the test data show they were actually canopy. Additional measures of the performance of the classifier for each class are reported in Table 2. For example, sensitivity measures the proportion of the actual samples in a given class that were correctly identified as such, while the positive predictive value (or precision) is the proportion of predictions in a given class that were correct. For more information regarding performance measures in Table 2, see [Wikipedia](https://en.wikipedia.org/wiki/Sensitivity_and_specificity).
 
-__Table 2: Statistical measures of the performance of the model for each class. Class-wise statistics were computed using a 'one against all' approach.__ 
+__Table 2: Statistical measures of the performance of the model for each class. Class-wise statistics were computed using a 'one against all' approach.__
 ```{r classwise_eval, out.width='50%'}
-output <- as.data.frame(error_mat$byClass) %>% 
+output <- as.data.frame(error_mat$byClass) %>%
   select(Sensitivity, Specificity,
-         `Positive predictive value`=`Pos Pred Value`, 
-         `Negative predictive value`=`Neg Pred Value`) %>% 
+         `Positive predictive value`=`Pos Pred Value`,
+         `Negative predictive value`=`Neg Pred Value`) %>%
   round(., 3)
 row.names(output) <- classes
 pander(output, justify = 'lrrrr', split.cells=c(2, rep(5, 4)))
 ```
 
-Finally, we performed a 'straight-face' test (qualitative visual assessment) of the result. Though every iteration of the model we produced ultimately passed the statistical tests, we noticed that some regions within the project area were more problematic than others. For example, the craters in the NE quadrant of the study area were showing up with more area classified as tree canopy than expected, and a quick visual assessment confirmed that the model was likely confusing green grass in the understory as significant and contiguous enough to be canopy. This is what lead to the deployment of a larger opportunistic sample and the subsequent development of a geographically boosted training set.  
+Finally, we performed a 'straight-face' test (qualitative visual assessment) of the result. Though every iteration of the model we produced ultimately passed the statistical tests, we noticed that some regions within the project area were more problematic than others. For example, the craters in the NE quadrant of the study area were showing up with more area classified as tree canopy than expected, and a quick visual assessment confirmed that the model was likely confusing green grass in the understory as significant and contiguous enough to be canopy. This is what lead to the deployment of a larger opportunistic sample and the subsequent development of a geographically boosted training set.
 
 
 ## Spatial metrics
-Indicators of desired forest structural conditions (Science and Monitoring Working Group 2012) include patch size, density, and configuration. These landscape pattern indices (LPIs), among others, are described in Table 1. at multiple spatial scales. 
+Indicators of desired forest structural conditions (Science and Monitoring Working Group 2012) include patch size, density, and configuration. These landscape pattern indices (LPIs), among others, are described in Table 1. at multiple spatial scales.
 
 The US Forest Service selected eight metrics (some of which were composites of several individual FRAGSTATS metrics) from @cushman_parsimony_2008.
 
-We used the R package [SDMTools](https://github.com/jjvanderwal/SDMTools) to compute the majority of the LPIs. 
+We used the R package [SDMTools](https://github.com/jjvanderwal/SDMTools) to compute the majority of the LPIs.
 
-The landscape/classification was divided up into sublandscapes. Landscape pattern indices (LPIs) were computed for each sublandscape and subsequently mosaiced into a new raster. LPIs were developed at multiple scales. 
+The landscape/classification was divided up into sublandscapes. Landscape pattern indices (LPIs) were computed for each sublandscape and subsequently mosaiced into a new raster. LPIs were developed at multiple scales.
 
-We developed the following mutually agreed upon spatial metrics for each area. TABLE. Accuracy and precision of results. Spatial scales. Very fine scale (1 acre) and a very very broad scale (watersheds, HUC5 or so) — 500 acres or so. Patches…. They (the people doing the treatements) allow for patches to be up to 4 acres. The lions share are less than an acre. That’s their desired condition, after they treat it. Before treatment, they may be 100% full because they haven’t thinned it yet. 
+We developed the following mutually agreed upon spatial metrics for each area. TABLE. Accuracy and precision of results. Spatial scales. Very fine scale (1 acre) and a very very broad scale (watersheds, HUC5 or so) — 500 acres or so. Patches…. They (the people doing the treatements) allow for patches to be up to 4 acres. The lions share are less than an acre. That’s their desired condition, after they treat it. Before treatment, they may be 100% full because they haven’t thinned it yet.
 
 __Table 3: Horizontal forest structure (landscape pattern) metrics.__
 ```{r lpis}
@@ -221,8 +235,12 @@ __Figure 3. An example of a simulated forested area with and without (left and c
 </p>
 
 Data from the simulations allow us to fit a model to predict the ‘true’ value of each LPI, i.e., the value we would have obtained if shadows were not present. We modeled the data as
-$$y_{ij} = \beta_0 + \beta_1x_{1,ij} + \beta_2x_{2,i} + \beta_3x_{3,i}, ...,
+
+<center>
+$$y_{ij} = \beta_0 + \beta_1x_{1,ij} + \beta_2x_{2,i} + \beta_3x_{3,i} + ... +
 \beta_mx_{m,i} + \epsilon_{ij}$$
+</center><br>
+
 where $y_{ij}$ is the true value of metric $i$ for sublandscape $j$. Predictors include the observed value of the metric $x_{1,ij}$, the proportion of canopy in the sublandscape, $x_{2,j}$, and the ratio of the proportion of shadow to the proportion of canopy in the sublandscape, $x_{2,j}$. Parameters $\beta_{4-m}$ are tied to the two way interactions between $x_{1-3}$
 We then leveraged the relationship between true and observed values to correct each metric for shadow effects, and generated an estimate of our degree of confidence in the reported LPI as the variance of observations around the 1:1 line (?). As expected, shadows have a stronger influence on some variables than others (e.g., AI vs. FRAC_CV).
 
@@ -234,21 +252,20 @@ __Figure 4: Scatterplots of the observed vs. true values of each LPI. Perfect es
 ```{r calibration, fig.show='hold', out.width='100%'}
 knitr::include_graphics(file.path(figs_dir, 'lpis_calibration.png'))
 ```
-__Figure 5: Values of each LPI against true values after calibration [TODO: report fit statistics.].__
+__Figure 5: Values of each LPI against true values after calibration [<mark>TODO</mark>: report fit statistics.].__
 
 
-[TODOS: apply the model to one of the LPIs and show a before/after. Define functions for metrics we're currently missing and generate those too. Restart the CCC (V2?) without NAIP.]
+[<mark>TODOS</mark>: apply the model to one of the LPIs and show a before/after. Define functions for metrics we're currently missing and generate those too. Restart the CCC (V2?) without NAIP.]
 
 ## Usage
 Guidance for the acceptable use and appropriate scales of use for each product….
-We recommend visual inspection of the classification (and any derived quantities) for class confusion in green meadow areas, or where Pondersoa gives way to scrub brush communities near the rim. Steep terrain.... 
+We recommend visual inspection of the classification (and any derived quantities) for class confusion in green meadow areas, or where Pondersoa gives way to scrub brush communities near the rim. Steep terrain....
 Changes in canopy cover over time....
 
 All of the code used in developing this analysis is available [here](https://bitbucket.org/lzachmann/4fri-lpa).
 
 # Acknowledgements
-L. J. Zachmann and B. G. Dickson received support from the the USDA Forest Service, Coconino National Forest (challenge cost share supplemental project agreement 15-CS-11030420-033). Christopher Ray, Valerie Horncastle, and Michael Peters contributed to training (and other ancillary) data development. 
+L. J. Zachmann and B. G. Dickson received support from the the USDA Forest Service, Coconino National Forest (challenge cost share supplemental project agreement 15-CS-11030420-033). Christopher Ray, Valerie Horncastle, and Michael Peters contributed to training (and other ancillary) data development.
 
-<!-- http://rmarkdown.rstudio.com/authoring_bibliographies_and_citations.html -->
 # References
 
