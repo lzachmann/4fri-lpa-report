@@ -10,8 +10,8 @@ abstract: |
 bibliography: bibliography.bib
 csl: conservation-biology.csl
 output:
-  rmdy::csp_page:
-    template: html_csp
+  rmdy::lci_page:
+    template: html_lci
 ---
 
 
